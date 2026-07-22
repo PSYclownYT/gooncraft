@@ -1,0 +1,11 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:item": {
+    "description": { "identifier": "gooncraft:farm_tuner", "menu_category": { "category": "equipment" } },
+    "components": {
+      "minecraft:display_name": { "value": "item.gooncraft.wrench" },
+      "minecraft:icon": "iron_pickaxe",
+      "minecraft:max_stack_size": 1
+    }
+  }
+}

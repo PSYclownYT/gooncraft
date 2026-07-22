@@ -1,0 +1,14 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:block": {
+    "description": { "identifier": "gooncraft:crop_booster", "menu_category": { "category": "items" } },
+    "components": {
+      "minecraft:display_name": "tile.gooncraft.crop_booster.name",
+      "minecraft:geometry": "minecraft:geometry.full_block",
+      "minecraft:material_instances": { "*": { "texture": "grass_top", "render_method": "opaque" } },
+      "minecraft:destructible_by_mining": { "seconds_to_destroy": 1.5 },
+      "minecraft:destructible_by_explosion": { "explosion_resistance": 6 },
+      "minecraft:map_color": "#4f6f45"
+    }
+  }
+}
