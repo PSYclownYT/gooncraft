@@ -11,14 +11,36 @@ const FARM_TUNER = "gooncraft:farm_tuner";
 const HOPPER = "minecraft:hopper";
 const INSERT_SOUND = "random.pop";
 const MAX_CACHE_COUNT = 9007199254740991;
-const stores = new Map(JSON.parse(world.getDynamicProperty("gooncraft:cache_stores") ?? "[]"));
-const duplicators = new Map(JSON.parse(world.getDynamicProperty("gooncraft:duplicator_stores") ?? "[]"));
-const harvesters = new Map(JSON.parse(world.getDynamicProperty("gooncraft:harvester_settings") ?? "[]"));
+const stores = new Map();
+const duplicators = new Map();
+const harvesters = new Map();
+let dynamicPropertiesLoaded = false;
+
+const loadMap = (propertyId) => new Map(JSON.parse(world.getDynamicProperty(propertyId) ?? "[]"));
+const ensureDynamicPropertiesLoaded = () => {
+  if (dynamicPropertiesLoaded) return;
+  stores.clear();
+  duplicators.clear();
+  harvesters.clear();
+  for (const [key, value] of loadMap("gooncraft:cache_stores")) stores.set(key, value);
+  for (const [key, value] of loadMap("gooncraft:duplicator_stores")) duplicators.set(key, value);
+  for (const [key, value] of loadMap("gooncraft:harvester_settings")) harvesters.set(key, value);
+  dynamicPropertiesLoaded = true;
+};
 
 const keyOf = (block) => `${block.dimension.id}:${block.location.x},${block.location.y},${block.location.z}`;
-const saveStores = () => world.setDynamicProperty("gooncraft:cache_stores", JSON.stringify([...stores]));
-const saveDuplicators = () => world.setDynamicProperty("gooncraft:duplicator_stores", JSON.stringify([...duplicators]));
-const saveHarvesters = () => world.setDynamicProperty("gooncraft:harvester_settings", JSON.stringify([...harvesters]));
+const saveStores = () => {
+  ensureDynamicPropertiesLoaded();
+  world.setDynamicProperty("gooncraft:cache_stores", JSON.stringify([...stores]));
+};
+const saveDuplicators = () => {
+  ensureDynamicPropertiesLoaded();
+  world.setDynamicProperty("gooncraft:duplicator_stores", JSON.stringify([...duplicators]));
+};
+const saveHarvesters = () => {
+  ensureDynamicPropertiesLoaded();
+  world.setDynamicProperty("gooncraft:harvester_settings", JSON.stringify([...harvesters]));
+};
 const blockCenter = (block) => ({ x: block.location.x + 0.5, y: block.location.y + 0.5, z: block.location.z + 0.5 });
 const playInsertSound = (dimension, location) => dimension.playSound?.(INSERT_SOUND, location);
 const cropSeeds = new Map([
@@ -30,6 +52,7 @@ const cropSeeds = new Map([
 const organic = new Set(["minecraft:wheat_seeds", "minecraft:wheat", "minecraft:carrot", "minecraft:potato", "minecraft:beetroot", "minecraft:beetroot_seeds", "minecraft:melon_slice", "minecraft:pumpkin", "minecraft:cactus", "minecraft:sugar_cane", "minecraft:kelp"]);
 
 world.afterEvents.playerInteractWithBlock.subscribe((event) => {
+  ensureDynamicPropertiesLoaded();
   const { block, itemStack, player } = event;
   if (itemStack?.typeId === FARM_TUNER && block.typeId === DUPLICATOR) {
     showDuplicatorGui(block, player);
@@ -85,12 +108,14 @@ world.afterEvents.playerInteractWithBlock.subscribe((event) => {
 });
 
 world.afterEvents.playerBreakBlock.subscribe((event) => {
+  ensureDynamicPropertiesLoaded();
   if (event.brokenBlockPermutation.type.id !== CACHE) return;
   const store = stores.get(keyOf({ dimension: event.dimension, location: event.block.location }));
   if (store?.typeId && store.count > 0) event.player.sendMessage(`Infinity Cache retained ${store.count} ${store.typeId}; place it back at the same spot to access it.`);
 });
 
 system.runInterval(() => {
+  ensureDynamicPropertiesLoaded();
   for (const dimension of [world.getDimension("overworld"), world.getDimension("nether"), world.getDimension("the_end")]) {
     for (const player of dimension.getPlayers()) {
       scanFarmBlocks(dimension, player.location);
