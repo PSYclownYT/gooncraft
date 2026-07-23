@@ -1,5 +1,0 @@
-{
-  "resource_pack_name": "gooncraft_farm_utils",
-  "texture_name": "atlas.items",
-  "texture_data": { "farm_tuner": { "textures": "textures/items/iron_pickaxe" } }
-}
