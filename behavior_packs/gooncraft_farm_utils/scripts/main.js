@@ -5,13 +5,16 @@ const VACUUM = "gooncraft:vacuum_hopper";
 const BOOSTER = "gooncraft:crop_booster";
 const HARVESTER = "gooncraft:harvester_core";
 const COMPOSTER = "gooncraft:compost_engine";
+const DUPLICATOR = "gooncraft:duplication_barrel";
 const HOPPER = "minecraft:hopper";
 const INSERT_SOUND = "random.pop";
 const MAX_CACHE_COUNT = 9007199254740991;
 const stores = new Map(JSON.parse(world.getDynamicProperty("gooncraft:cache_stores") ?? "[]"));
+const duplicators = new Map(JSON.parse(world.getDynamicProperty("gooncraft:duplicator_stores") ?? "[]"));
 
 const keyOf = (block) => `${block.dimension.id}:${block.location.x},${block.location.y},${block.location.z}`;
 const saveStores = () => world.setDynamicProperty("gooncraft:cache_stores", JSON.stringify([...stores]));
+const saveDuplicators = () => world.setDynamicProperty("gooncraft:duplicator_stores", JSON.stringify([...duplicators]));
 const blockCenter = (block) => ({ x: block.location.x + 0.5, y: block.location.y + 0.5, z: block.location.z + 0.5 });
 const playInsertSound = (dimension, location) => dimension.playSound?.(INSERT_SOUND, location);
 const cropSeeds = new Map([
@@ -24,6 +27,10 @@ const organic = new Set(["minecraft:wheat_seeds", "minecraft:wheat", "minecraft:
 
 world.afterEvents.playerInteractWithBlock.subscribe((event) => {
   const { block, itemStack, player } = event;
+  if (block.typeId === DUPLICATOR) {
+    interactWithDuplicator(block, itemStack, player);
+    return;
+  }
   if (block.typeId !== CACHE) return;
   const key = keyOf(block);
   const store = stores.get(key) ?? { typeId: undefined, count: 0 };
@@ -84,11 +91,120 @@ function scanFarmBlocks(dimension, center) {
     const block = dimension.getBlock({ x: Math.floor(center.x) + x, y: Math.floor(center.y) + y, z: Math.floor(center.z) + z });
     if (!block) continue;
     if (block.typeId === CACHE) serviceCacheHoppers(block);
+    if (block.typeId === DUPLICATOR) serviceDuplicator(block);
     if (block.typeId === VACUUM) vacuumItems(block);
     if (block.typeId === BOOSTER) boostCrops(block);
     if (block.typeId === HARVESTER) harvestCrops(block);
     if (block.typeId === COMPOSTER) compostDrops(block);
   }
+}
+
+function interactWithDuplicator(block, itemStack, player) {
+  const key = keyOf(block);
+  const store = duplicators.get(key) ?? { input: undefined, output: undefined };
+  if (!itemStack) {
+    const stack = takeFromSlot(store, "output", 64);
+    if (!stack) {
+      player.sendMessage("Duplication Barrel output is empty.");
+      return;
+    }
+    player.getComponent("inventory").container.addItem(stack);
+    if (isDuplicatorEmpty(store)) duplicators.delete(key); else duplicators.set(key, store);
+    saveDuplicators();
+    return;
+  }
+
+  const inv = player.getComponent("inventory").container;
+  let moved = 0;
+  for (let slot = 0; slot < inv.size; slot++) {
+    const stack = inv.getItem(slot);
+    if (!stack || stack.typeId !== itemStack.typeId) continue;
+    const accepted = addToSlot(store, "input", stack);
+    if (accepted <= 0) continue;
+    moved += accepted;
+    inv.setItem(slot, stack.amount === accepted ? undefined : new ItemStack(stack.typeId, stack.amount - accepted));
+  }
+  if (moved > 0) {
+    duplicators.set(key, store);
+    saveDuplicators();
+    player.playSound(INSERT_SOUND);
+  }
+}
+
+function serviceDuplicator(block) {
+  const key = keyOf(block);
+  const store = duplicators.get(key) ?? { input: undefined, output: undefined };
+  let changed = false;
+
+  const inputHopper = block.above();
+  if (inputHopper?.typeId === HOPPER) {
+    const input = inputHopper.getComponent("inventory")?.container;
+    if (input) {
+      for (let slot = 0; slot < input.size; slot++) {
+        const stack = input.getItem(slot);
+        if (!stack) continue;
+        const moved = addToSlot(store, "input", stack);
+        if (moved <= 0) continue;
+        input.setItem(slot, stack.amount === moved ? undefined : new ItemStack(stack.typeId, stack.amount - moved));
+        playInsertSound(block.dimension, blockCenter(block));
+        changed = true;
+      }
+    }
+  }
+
+  if (isPowered(block) && store.input?.typeId) {
+    const moved = addToSlot(store, "output", new ItemStack(store.input.typeId, 1));
+    changed = changed || moved > 0;
+  }
+
+  const outputHopper = block.below();
+  const output = outputHopper?.typeId === HOPPER ? outputHopper.getComponent("inventory")?.container : undefined;
+  if (output && store.output?.typeId && store.output.count > 0) {
+    const stack = takeFromSlot(store, "output", 64);
+    const leftover = output.addItem(stack);
+    if (leftover?.amount) addToSlot(store, "output", leftover);
+    changed = true;
+  }
+
+  if (!changed) return;
+  if (isDuplicatorEmpty(store)) duplicators.delete(key); else duplicators.set(key, store);
+  saveDuplicators();
+}
+
+function addToSlot(store, slotName, stack) {
+  const slot = store[slotName];
+  if (slot?.typeId && slot.typeId !== stack.typeId) return 0;
+  const count = Math.min(64, (slot?.count ?? 0) + stack.amount);
+  const moved = count - (slot?.count ?? 0);
+  store[slotName] = { typeId: stack.typeId, count };
+  return moved;
+}
+
+function takeFromSlot(store, slotName, maxAmount) {
+  const slot = store[slotName];
+  if (!slot?.typeId || slot.count <= 0) return undefined;
+  const amount = Math.min(maxAmount, slot.count);
+  slot.count -= amount;
+  const stack = new ItemStack(slot.typeId, amount);
+  if (slot.count <= 0) store[slotName] = undefined;
+  return stack;
+}
+
+function isDuplicatorEmpty(store) {
+  return (!store.input || store.input.count <= 0) && (!store.output || store.output.count <= 0);
+}
+
+function isPowered(block) {
+  const power = block.getRedstonePower?.();
+  if (power && power > 0) return true;
+  return [
+    block.above(),
+    block.below(),
+    block.offset({ x: 1, y: 0, z: 0 }),
+    block.offset({ x: -1, y: 0, z: 0 }),
+    block.offset({ x: 0, y: 0, z: 1 }),
+    block.offset({ x: 0, y: 0, z: -1 })
+  ].some((neighbor) => neighbor?.typeId === "minecraft:redstone_block");
 }
 
 function serviceCacheHoppers(block) {
@@ -153,9 +269,24 @@ function harvestCrops(block) {
     const age = crop?.permutation.getState("growth") ?? crop?.permutation.getState("growth_state");
     if (!cropSeeds.has(crop?.typeId) || age < 7) continue;
     const seed = cropSeeds.get(crop.typeId);
+    emitItem(block, new ItemStack(seed, 1), blockCenter(crop));
+    emitItem(block, new ItemStack(cropDropFor(crop.typeId), 1), blockCenter(crop));
     crop.dimension.runCommandAsync(`setblock ${crop.location.x} ${crop.location.y} ${crop.location.z} ${crop.typeId}`);
-    crop.dimension.spawnItem(new ItemStack(seed, 1), blockCenter(crop));
   }
+}
+
+function cropDropFor(typeId) {
+  if (typeId === "minecraft:wheat") return "minecraft:wheat";
+  if (typeId === "minecraft:beetroot") return "minecraft:beetroot";
+  if (typeId === "minecraft:carrots") return "minecraft:carrot";
+  if (typeId === "minecraft:potatoes") return "minecraft:potato";
+  return typeId;
+}
+
+function emitItem(sourceBlock, stack, fallbackLocation) {
+  const output = sourceBlock.below()?.typeId === HOPPER ? sourceBlock.below().getComponent("inventory")?.container : undefined;
+  const leftover = output?.addItem(stack);
+  if (!output || leftover?.amount) sourceBlock.dimension.spawnItem(leftover ?? stack, fallbackLocation);
 }
 
 function compostDrops(block) {

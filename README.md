@@ -9,6 +9,7 @@ A Minecraft: Bedrock Edition add-on that adds compact farm utility blocks, inclu
 - **Crop Booster** (`gooncraft:crop_booster`): Periodically applies random-tick style growth to nearby crops and saplings.
 - **Harvester Core** (`gooncraft:harvester_core`): Harvests mature crops in a small area and replants them automatically when seeds are available from the drops.
 - **Compost Engine** (`gooncraft:compost_engine`): Converts nearby organic item drops into bone meal.
+- **Duplication Barrel** (`gooncraft:duplication_barrel`): A barrel-like two-slot utility. Hoppers above insert into slot 1, redstone power duplicates slot 1 into slot 2, and hoppers below extract only slot 2.
 
 ## Recipes
 
@@ -18,6 +19,7 @@ A Minecraft: Bedrock Edition add-on that adds compact farm utility blocks, inclu
 - **Harvester Core**: Shears, iron ingots, redstone, and a dispenser.
 - **Compost Engine**: Bone meal, composters, redstone, and a hopper.
 - **Farm Tuner**: Sticks and an iron ingot.
+- **Duplication Barrel**: Redstone, emeralds, barrels, and a diamond.
 
 ## Installation
 

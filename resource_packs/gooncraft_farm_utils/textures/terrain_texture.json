@@ -6,6 +6,7 @@
     "vacuum_hopper": { "textures": "textures/blocks/hopper_top" },
     "crop_booster": { "textures": "textures/blocks/grass_top" },
     "harvester_core": { "textures": "textures/blocks/dispenser_front_horizontal" },
-    "compost_engine": { "textures": "textures/blocks/composter_side" }
+    "compost_engine": { "textures": "textures/blocks/composter_side" },
+    "duplication_barrel": { "textures": "textures/blocks/barrel_side" }
   }
 }
