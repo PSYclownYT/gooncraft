@@ -1,5 +1,4 @@
 import { ItemStack, system, world } from "@minecraft/server";
-import { ActionFormData } from "@minecraft/server-ui";
 
 const CACHE = "gooncraft:infinity_cache";
 const VACUUM = "gooncraft:vacuum_hopper";
@@ -114,52 +113,42 @@ function scanFarmBlocks(dimension, center) {
 function showDuplicatorGui(block, player) {
   const key = keyOf(block);
   const store = duplicators.get(key) ?? { input: undefined, output: undefined };
-  const input = describeSlot(store.input);
-  const output = describeSlot(store.output);
-  new ActionFormData()
-    .title("Duplication Barrel")
-    .body(`Slot 1 Input: ${input}\nSlot 2 Output: ${output}\n\nTop hoppers insert into slot 1. Bottom hoppers extract only slot 2.`)
-    .button("Withdraw output")
-    .button("Clear input")
-    .button("Clear output")
-    .button("Close")
-    .show(player)
-    .then((response) => {
-      if (response.canceled) return;
-      const current = duplicators.get(key) ?? { input: undefined, output: undefined };
-      if (response.selection === 0) {
-        const stack = takeFromSlot(current, "output", 64);
-        if (stack) player.getComponent("inventory").container.addItem(stack);
-      }
-      if (response.selection === 1) current.input = undefined;
-      if (response.selection === 2) current.output = undefined;
-      if (response.selection <= 2) {
-        if (isDuplicatorEmpty(current)) duplicators.delete(key); else duplicators.set(key, current);
-        saveDuplicators();
-      }
-    });
+
+  if (player.isSneaking) {
+    store.input = undefined;
+    store.output = undefined;
+    duplicators.delete(key);
+    saveDuplicators();
+    player.sendMessage("Duplication Barrel input and output cleared.");
+    return;
+  }
+
+  const stack = takeFromSlot(store, "output", 64);
+  if (stack) {
+    player.getComponent("inventory").container.addItem(stack);
+    if (isDuplicatorEmpty(store)) duplicators.delete(key); else duplicators.set(key, store);
+    saveDuplicators();
+    player.sendMessage(`Withdrew ${stack.amount} ${stack.typeId} from Duplication Barrel output.`);
+    return;
+  }
+
+  player.sendMessage(`Duplication Barrel - Input: ${describeSlot(store.input)}; Output: ${describeSlot(store.output)}. Sneak-use with Farm Tuner to clear both slots.`);
 }
 
 function showHarvesterGui(block, player) {
   const key = keyOf(block);
   const settings = harvesters.get(key) ?? { enabled: true, radius: 3 };
-  new ActionFormData()
-    .title("Harvester Core")
-    .body(`Status: ${settings.enabled ? "Enabled" : "Disabled"}\nRadius: ${settings.radius} blocks\nOutput: hopper below when present, otherwise ground drops.`)
-    .button(settings.enabled ? "Disable" : "Enable")
-    .button("Cycle radius")
-    .button("Close")
-    .show(player)
-    .then((response) => {
-      if (response.canceled) return;
-      const current = harvesters.get(key) ?? { enabled: true, radius: 3 };
-      if (response.selection === 0) current.enabled = !current.enabled;
-      if (response.selection === 1) current.radius = current.radius >= 3 ? 1 : current.radius + 1;
-      if (response.selection <= 1) {
-        harvesters.set(key, current);
-        saveHarvesters();
-      }
-    });
+
+  if (player.isSneaking) {
+    settings.radius = settings.radius >= 3 ? 1 : settings.radius + 1;
+    player.sendMessage(`Harvester Core radius set to ${settings.radius} block${settings.radius === 1 ? "" : "s"}.`);
+  } else {
+    settings.enabled = !settings.enabled;
+    player.sendMessage(`Harvester Core ${settings.enabled ? "enabled" : "disabled"}. Radius: ${settings.radius}.`);
+  }
+
+  harvesters.set(key, settings);
+  saveHarvesters();
 }
 
 function describeSlot(slot) {
