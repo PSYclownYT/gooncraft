@@ -1,4 +1,5 @@
 import { ItemStack, system, world } from "@minecraft/server";
+import { ActionFormData } from "@minecraft/server-ui";
 
 const CACHE = "gooncraft:infinity_cache";
 const VACUUM = "gooncraft:vacuum_hopper";
@@ -6,15 +7,18 @@ const BOOSTER = "gooncraft:crop_booster";
 const HARVESTER = "gooncraft:harvester_core";
 const COMPOSTER = "gooncraft:compost_engine";
 const DUPLICATOR = "gooncraft:duplication_barrel";
+const FARM_TUNER = "gooncraft:farm_tuner";
 const HOPPER = "minecraft:hopper";
 const INSERT_SOUND = "random.pop";
 const MAX_CACHE_COUNT = 9007199254740991;
 const stores = new Map(JSON.parse(world.getDynamicProperty("gooncraft:cache_stores") ?? "[]"));
 const duplicators = new Map(JSON.parse(world.getDynamicProperty("gooncraft:duplicator_stores") ?? "[]"));
+const harvesters = new Map(JSON.parse(world.getDynamicProperty("gooncraft:harvester_settings") ?? "[]"));
 
 const keyOf = (block) => `${block.dimension.id}:${block.location.x},${block.location.y},${block.location.z}`;
 const saveStores = () => world.setDynamicProperty("gooncraft:cache_stores", JSON.stringify([...stores]));
 const saveDuplicators = () => world.setDynamicProperty("gooncraft:duplicator_stores", JSON.stringify([...duplicators]));
+const saveHarvesters = () => world.setDynamicProperty("gooncraft:harvester_settings", JSON.stringify([...harvesters]));
 const blockCenter = (block) => ({ x: block.location.x + 0.5, y: block.location.y + 0.5, z: block.location.z + 0.5 });
 const playInsertSound = (dimension, location) => dimension.playSound?.(INSERT_SOUND, location);
 const cropSeeds = new Map([
@@ -27,6 +31,14 @@ const organic = new Set(["minecraft:wheat_seeds", "minecraft:wheat", "minecraft:
 
 world.afterEvents.playerInteractWithBlock.subscribe((event) => {
   const { block, itemStack, player } = event;
+  if (itemStack?.typeId === FARM_TUNER && block.typeId === DUPLICATOR) {
+    showDuplicatorGui(block, player);
+    return;
+  }
+  if (itemStack?.typeId === FARM_TUNER && block.typeId === HARVESTER) {
+    showHarvesterGui(block, player);
+    return;
+  }
   if (block.typeId === DUPLICATOR) {
     interactWithDuplicator(block, itemStack, player);
     return;
@@ -97,6 +109,61 @@ function scanFarmBlocks(dimension, center) {
     if (block.typeId === HARVESTER) harvestCrops(block);
     if (block.typeId === COMPOSTER) compostDrops(block);
   }
+}
+
+function showDuplicatorGui(block, player) {
+  const key = keyOf(block);
+  const store = duplicators.get(key) ?? { input: undefined, output: undefined };
+  const input = describeSlot(store.input);
+  const output = describeSlot(store.output);
+  new ActionFormData()
+    .title("Duplication Barrel")
+    .body(`Slot 1 Input: ${input}\nSlot 2 Output: ${output}\n\nTop hoppers insert into slot 1. Bottom hoppers extract only slot 2.`)
+    .button("Withdraw output")
+    .button("Clear input")
+    .button("Clear output")
+    .button("Close")
+    .show(player)
+    .then((response) => {
+      if (response.canceled) return;
+      const current = duplicators.get(key) ?? { input: undefined, output: undefined };
+      if (response.selection === 0) {
+        const stack = takeFromSlot(current, "output", 64);
+        if (stack) player.getComponent("inventory").container.addItem(stack);
+      }
+      if (response.selection === 1) current.input = undefined;
+      if (response.selection === 2) current.output = undefined;
+      if (response.selection <= 2) {
+        if (isDuplicatorEmpty(current)) duplicators.delete(key); else duplicators.set(key, current);
+        saveDuplicators();
+      }
+    });
+}
+
+function showHarvesterGui(block, player) {
+  const key = keyOf(block);
+  const settings = harvesters.get(key) ?? { enabled: true, radius: 3 };
+  new ActionFormData()
+    .title("Harvester Core")
+    .body(`Status: ${settings.enabled ? "Enabled" : "Disabled"}\nRadius: ${settings.radius} blocks\nOutput: hopper below when present, otherwise ground drops.`)
+    .button(settings.enabled ? "Disable" : "Enable")
+    .button("Cycle radius")
+    .button("Close")
+    .show(player)
+    .then((response) => {
+      if (response.canceled) return;
+      const current = harvesters.get(key) ?? { enabled: true, radius: 3 };
+      if (response.selection === 0) current.enabled = !current.enabled;
+      if (response.selection === 1) current.radius = current.radius >= 3 ? 1 : current.radius + 1;
+      if (response.selection <= 1) {
+        harvesters.set(key, current);
+        saveHarvesters();
+      }
+    });
+}
+
+function describeSlot(slot) {
+  return slot?.typeId && slot.count > 0 ? `${slot.count} ${slot.typeId}` : "empty";
 }
 
 function interactWithDuplicator(block, itemStack, player) {
@@ -264,7 +331,10 @@ function boostCrops(block) {
 }
 
 function harvestCrops(block) {
-  for (let x = -3; x <= 3; x++) for (let z = -3; z <= 3; z++) {
+  const settings = harvesters.get(keyOf(block)) ?? { enabled: true, radius: 3 };
+  if (!settings.enabled) return;
+  const radius = settings.radius ?? 3;
+  for (let x = -radius; x <= radius; x++) for (let z = -radius; z <= radius; z++) {
     const crop = block.offset({ x, y: 0, z });
     const age = crop?.permutation.getState("growth") ?? crop?.permutation.getState("growth_state");
     if (!cropSeeds.has(crop?.typeId) || age < 7) continue;
