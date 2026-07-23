@@ -1,0 +1,19 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": { "identifier": "gooncraft:duplication_barrel" },
+    "tags": ["crafting_table"],
+    "pattern": [
+      "RER",
+      "BDB",
+      "RER"
+    ],
+    "key": {
+      "R": { "item": "minecraft:redstone" },
+      "E": { "item": "minecraft:emerald" },
+      "B": { "item": "minecraft:barrel" },
+      "D": { "item": "minecraft:diamond" }
+    },
+    "result": { "item": "gooncraft:duplication_barrel", "count": 1 }
+  }
+}

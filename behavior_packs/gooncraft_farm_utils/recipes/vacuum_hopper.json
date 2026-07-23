@@ -1,0 +1,18 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": { "identifier": "gooncraft:vacuum_hopper" },
+    "tags": ["crafting_table"],
+    "pattern": [
+      "IRI",
+      "RHR",
+      " I "
+    ],
+    "key": {
+      "I": { "item": "minecraft:iron_ingot" },
+      "R": { "item": "minecraft:redstone" },
+      "H": { "item": "minecraft:hopper" }
+    },
+    "result": { "item": "gooncraft:vacuum_hopper", "count": 1 }
+  }
+}

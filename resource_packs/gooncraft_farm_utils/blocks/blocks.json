@@ -1,0 +1,9 @@
+{
+  "format_version": "1.21.0",
+  "gooncraft:infinity_cache": { "textures": "obsidian", "sound": "stone" },
+  "gooncraft:vacuum_hopper": { "textures": "hopper_top", "sound": "metal" },
+  "gooncraft:crop_booster": { "textures": "grass_top", "sound": "grass" },
+  "gooncraft:harvester_core": { "textures": "dispenser_front_horizontal", "sound": "wood" },
+  "gooncraft:compost_engine": { "textures": "composter_side", "sound": "wood" },
+  "gooncraft:duplication_barrel": { "textures": "barrel_side", "sound": "wood" }
+}
